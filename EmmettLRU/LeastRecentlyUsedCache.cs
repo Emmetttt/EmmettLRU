@@ -1,11 +1,13 @@
+using System.Collections.Concurrent;
+
 namespace EmmettLRU;
 
 /// <summary>
 /// LRU cache discards the least recently used item when the Capacity is reached.
 ///
-/// The LRU cache offers O(1) reads and writes.
+/// The LRU cache offers O(1) reads and writes through use of its 
 /// </summary>
-public class LeastRecentlyUsedCache<K, V> : IBoundedCache<K, V> where K : IEquatable<K>
+public class LeastRecentlyUsedCache<K, V> : IConcurrentBoundedCache<K, V> where K : IEquatable<K>
 {
     private int _currentSize = 0;
     public int CurrentSize
@@ -21,15 +23,18 @@ public class LeastRecentlyUsedCache<K, V> : IBoundedCache<K, V> where K : IEquat
 
     public int Capacity { get; }
     
-    // Dictionary provides O(1) reads. ConcurrentDictionary unnecessary as we use a lock to keep the dictionary
-    // and linked list in sync anyway
-    private readonly Dictionary<K, LinkedListNode<KeyValuePair<K, V>>> _underlyingDictionary;
+    // Dictionary provides O(1) reads and writes. ConcurrentDictionary is unnecessary as we use a manual lock to keep
+    // the dictionary and linked list in sync, precluding race conditions when accessing the dictionary. When benchmarked,
+    // a ConcurrentDictionary incurs a 120% overhead on writes
+    private readonly ConcurrentDictionary<K, LinkedListNode<KeyValuePair<K, V>>> _underlyingDictionary;
     
-    // Linked list allows FILO or FIFO tracking of keys
+    // Linked list allows FIFO tracking of KVPs. We use the keys on to help remove the associated entry from the underlying
+    // dictionary when evicting, and the KVP object when promoting a read pair from the dictionary to the front of the
+    // list
     private readonly LinkedList<KeyValuePair<K, V>> _underlyingLinkedList = new LinkedList<KeyValuePair<K, V>>();
     
+    // We do not differentiate between reads and writes in our lock, as reads are mutating the underlying data structure
     private readonly object _lock = new ();
-
 
     public LeastRecentlyUsedCache(int capacity)
     {
@@ -37,11 +42,12 @@ public class LeastRecentlyUsedCache<K, V> : IBoundedCache<K, V> where K : IEquat
             throw new ArgumentOutOfRangeException(nameof(capacity), $"Invalide size of '{capacity}' provided. Size must be >= 0.");
 
         Capacity = capacity;
-        _underlyingDictionary = new Dictionary<K, LinkedListNode<KeyValuePair<K, V>>>(capacity);
+        _underlyingDictionary = new ConcurrentDictionary<K, LinkedListNode<KeyValuePair<K, V>>>();
     }
 
     /// <summary>
-    /// Puts the key value pair into the cache in O(1). If the cache is at capacity, we  
+    /// Puts the key value pair into the cache in O(1) time complexity. If the cache is at capacity, we evict the last
+    /// read item.
     /// </summary>
     public void Put(K key, V value)
     {
@@ -56,11 +62,14 @@ public class LeastRecentlyUsedCache<K, V> : IBoundedCache<K, V> where K : IEquat
             }
             
             _underlyingLinkedList.AddFirst(new KeyValuePair<K, V>(key, value));
-            _underlyingDictionary.Add(key, _underlyingLinkedList.First!);
+            _underlyingDictionary.TryAdd(key, _underlyingLinkedList.First!);
             _currentSize++;
         }
     }
     
+    /// <summary>
+    /// Gets the associated value from the cache. If the key is not in the cache, `false` is returned and value is default
+    /// </summary>
     public bool TryGet(K key, out V value)
     {
         lock (_lock)
@@ -75,7 +84,7 @@ public class LeastRecentlyUsedCache<K, V> : IBoundedCache<K, V> where K : IEquat
 
             _underlyingLinkedList.Remove(kvpNode!);
             _underlyingLinkedList.AddFirst(kvpNode!);
-            value = kvpNode.ValueRef.Value;
+            value = kvpNode!.ValueRef.Value;
             return result;
         }
     }
