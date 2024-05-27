@@ -3,9 +3,7 @@ using System.Collections.Concurrent;
 namespace EmmettLRU;
 
 /// <summary>
-/// LRU cache discards the least recently used item when the Capacity is reached.
-///
-/// The LRU cache offers O(1) reads and writes through use of its 
+/// LRU cache discards the least recently used (read or written) item when the Capacity is reached.
 /// </summary>
 public class LeastRecentlyUsedCache<K, V> : IConcurrentBoundedCache<K, V> where K : IEquatable<K>
 {
@@ -26,12 +24,12 @@ public class LeastRecentlyUsedCache<K, V> : IConcurrentBoundedCache<K, V> where 
     // Dictionary provides O(1) reads and writes. ConcurrentDictionary is unnecessary as we use a manual lock to keep
     // the dictionary and linked list in sync, precluding race conditions when accessing the dictionary. When benchmarked,
     // a ConcurrentDictionary incurs a 120% overhead on writes
-    private readonly ConcurrentDictionary<K, LinkedListNode<KeyValuePair<K, V>>> _underlyingDictionary;
+    private readonly Dictionary<K, LinkedListNode<KeyValuePair<K, V>>> _underlyingDictionary;
     
     // Linked list allows FIFO tracking of KVPs. We use the keys on to help remove the associated entry from the underlying
     // dictionary when evicting, and the KVP object when promoting a read pair from the dictionary to the front of the
     // list
-    private readonly LinkedList<KeyValuePair<K, V>> _underlyingLinkedList = new LinkedList<KeyValuePair<K, V>>();
+    private readonly LinkedList<KeyValuePair<K, V>> _underlyingLinkedList = new ();
     
     // We do not differentiate between reads and writes in our lock, as reads are mutating the underlying data structure
     private readonly object _lock = new ();
@@ -42,7 +40,7 @@ public class LeastRecentlyUsedCache<K, V> : IConcurrentBoundedCache<K, V> where 
             throw new ArgumentOutOfRangeException(nameof(capacity), $"Invalide size of '{capacity}' provided. Size must be >= 0.");
 
         Capacity = capacity;
-        _underlyingDictionary = new ConcurrentDictionary<K, LinkedListNode<KeyValuePair<K, V>>>();
+        _underlyingDictionary = new Dictionary<K, LinkedListNode<KeyValuePair<K, V>>>(capacity);
     }
 
     /// <summary>
@@ -62,7 +60,7 @@ public class LeastRecentlyUsedCache<K, V> : IConcurrentBoundedCache<K, V> where 
             }
             
             _underlyingLinkedList.AddFirst(new KeyValuePair<K, V>(key, value));
-            _underlyingDictionary.TryAdd(key, _underlyingLinkedList.First!);
+            _underlyingDictionary.Add(key, _underlyingLinkedList.First!);
             _currentSize++;
         }
     }
