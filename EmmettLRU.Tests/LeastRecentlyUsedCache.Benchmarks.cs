@@ -39,11 +39,11 @@ public class LeastRecentlyUsedCacheBenchmarks
         [Benchmark]
         /*
             Runtime = .NET 6.0.25 (6.0.2523.51912), Arm64 RyuJIT AdvSIMD; GC = Concurrent Server
-            Mean = 7.942 s, StdErr = 0.007 s (0.09%), N = 14, StdDev = 0.027 s
-            Min = 7.907 s, Q1 = 7.923 s, Median = 7.934 s, Q3 = 7.964 s, Max = 7.989 s
-            IQR = 0.041 s, LowerFence = 7.862 s, UpperFence = 8.026 s
-            ConfidenceInterval = [7.912 s; 7.973 s] (CI 99.9%), Margin = 0.030 s (0.38% of Mean)
-            Skewness = 0.46, Kurtosis = 1.62, MValue = 2
+            Mean = 40.294 ms, StdErr = 0.030 ms (0.07%), N = 15, StdDev = 0.115 ms
+            Min = 40.143 ms, Q1 = 40.209 ms, Median = 40.290 ms, Q3 = 40.347 ms, Max = 40.500 ms
+            IQR = 0.138 ms, LowerFence = 40.002 ms, UpperFence = 40.554 ms
+            ConfidenceInterval = [40.171 ms; 40.417 ms] (CI 99.9%), Margin = 0.123 ms (0.31% of Mean)
+            Skewness = 0.51, Kurtosis = 1.86, MValue = 2
         */
         public void InsertAMillionItemsWithEvictions()
         {

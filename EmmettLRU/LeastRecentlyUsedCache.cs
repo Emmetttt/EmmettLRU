@@ -49,7 +49,7 @@ public class LeastRecentlyUsedCache<K, V> : IBoundedCache<K, V> where K : IEquat
         {
             if (CurrentSize == Capacity)
             {
-                var lastKvp = _underlyingLinkedList.Last();
+                var lastKvp = _underlyingLinkedList.Last!.Value;
                 _underlyingLinkedList.RemoveLast();
                 _underlyingDictionary.Remove(lastKvp.Key, out _);
                 _currentSize--;
